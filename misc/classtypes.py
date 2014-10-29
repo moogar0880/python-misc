@@ -66,7 +66,7 @@ class immutableobject:
         elif not self._fail_quietly:
             try:
                 name = str(self.__class__).split('.')[-1][:-2]
-            except:
+            except (AttributeError, IndexError, Exception):
                 name = 'immutableobject'
             msg = '{} object does not support item assignment'
             raise TypeError(msg.format(name))
@@ -77,15 +77,29 @@ class _Singleton(type):
     of this type.
     """
     _instances = {}
+    _meta_key = None
 
     def __call__(cls, *args, **kwargs):
-        _key = inspect.getmro(cls)
-        if _key not in cls._instances:
+        if cls._meta_key not in cls._instances:
             # super(_Singleton, cls) evaluates to type; *args/**kwargs get
             # passed to class __init__ method via type.__call__
-            cls._instances[_key] = \
+            cls._instances[cls._meta_key] = \
                 super(_Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[_key]
+        return cls._instances[cls._meta_key]
+
+    def new(cls, *args, **kwargs):
+        """Overwrite any existing instances of this Singleton type and replace
+        it with a new instance
+        """
+        if cls._meta_key in cls._instances:
+            cls._instances.pop(cls._meta_key)
+        return cls.__call__(*args, **kwargs)
+
+    def delete(cls):
+        """Delete any existing Singleton of this type, if one exists"""
+        if cls._meta_key in cls._instances:
+            cls._instances.pop(cls._meta_key)
+_Singleton._meta_key = inspect.getmro(_Singleton)
 
 
 class Singleton(_Singleton('SingletonMeta', (object,), {})):

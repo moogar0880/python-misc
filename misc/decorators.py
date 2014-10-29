@@ -39,7 +39,6 @@ class classproperty(object):
 
         self.fget = fget if is_class_method(fget) else classmethod(fget)
         self.fset = fset if is_class_method(fset) else classmethod(fset)
-        # self.fdel = fdel if is_class_method(fdel) else classmethod(fdel)
         if doc is None and fget is not None:
             doc = fget.__doc__
         self.__doc__ = doc
@@ -57,13 +56,6 @@ class classproperty(object):
         type_ = type(obj)
         return self.fset.__get__(obj, type_)(value)
 
-    # def __delete__(self, obj):
-    #     if self.fdel is None:
-    #         raise AttributeError("can't delete attribute")
-    #     # self.fdel(obj)
-    #     type_ = type(obj)
-    #     return self.fdel.__get__(obj, type_)
-
     def getter(self, func):
         if not isinstance(func, (classmethod, staticmethod)):
             func = classmethod(func)
@@ -75,9 +67,3 @@ class classproperty(object):
             func = classmethod(func)
         self.fset = func
         return self
-
-    # def deleter(self, func):
-    #     if not isinstance(func, (classmethod, staticmethod)):
-    #         func = classmethod(func)
-    #     self.fdel = func
-    #     return self
