@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """A module of potentially useful class types"""
+import inspect
+import threading
 
-__all__ = ['Dict', 'immutableobject']
+__all__ = ['Dict', 'immutableobject', 'Singleton', 'ThreadedSingleton']
 __author__ = 'Jon Nappi'
 
 
@@ -68,3 +70,58 @@ class immutableobject:
                 name = 'immutableobject'
             msg = '{} object does not support item assignment'
             raise TypeError(msg.format(name))
+
+
+class _Singleton(type):
+    """A metaclass for providing singleton-type functionality to all instances
+    of this type.
+    """
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        _key = inspect.getmro(cls)
+        if _key not in cls._instances:
+            # super(_Singleton, cls) evaluates to type; *args/**kwargs get
+            # passed to class __init__ method via type.__call__
+            cls._instances[_key] = \
+                super(_Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[_key]
+
+
+class Singleton(_Singleton('SingletonMeta', (object,), {})):
+    """A Singleton type for ensuring that only one type of any given object
+    exists at any given time. For example
+    ::
+        >>> class Foo(Singleton):
+        ...     def __init__(self, x):
+        ...         super(Foo, self).__init__()
+        ...         self.x = x
+        >>> f = Foo(5)
+        >>> f.x
+        ... 5
+        >>> f = Foo(8675309)
+        >>> f.x
+        ... 5
+    """
+    pass
+
+
+class ThreadedSingleton(_Singleton('SingletonMeta', (object,), {})):
+    """An additional, slightly less strict Singleton implementation. Here you
+    can use threads to isolate various singleton instances within their own
+    threads. Or, to put it simply, each thread can have it's own singleton
+    instance
+    """
+    def __call__(cls, *args, **kwargs):
+        _key = inspect.getmro(cls)
+        cur_thread = threading.current_thread()
+        if _key not in cls._instances:
+            cls._instances[_key] = {
+                # super(_Singleton, cls) evaluates to type; *args/**kwargs get
+                # passed to class __init__ method via type.__call__
+                cur_thread: super(_Singleton, cls).__call__(*args, **kwargs)
+            }
+        elif _key in cls._instances and cur_thread not in cls._instances[_key]:
+            cls._instances[_key][cur_thread] = \
+                super(_Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[_key][cur_thread]
