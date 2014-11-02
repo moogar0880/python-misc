@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """A module of potentially useful class types"""
 import inspect
-import threading
 
-__all__ = ['Dict', 'immutableobject', 'Singleton', 'ThreadedSingleton']
+__all__ = ['Dict', 'immutableobject', 'Singleton']
 __author__ = 'Jon Nappi'
 
 
@@ -22,6 +21,7 @@ class Dict(dict):
     precedence over keys in the left-most one. ie, if the same key exists in
     d2 as d1, then the value for d1 will be overriden on +='ing them together
     """
+
     def __iadd__(self, other):
         if not isinstance(other, dict):
             pass
@@ -80,6 +80,7 @@ class _Singleton(type):
     _meta_key = None
 
     def __call__(cls, *args, **kwargs):
+        cls._prep_meta_key()
         if cls._meta_key not in cls._instances:
             # super(_Singleton, cls) evaluates to type; *args/**kwargs get
             # passed to class __init__ method via type.__call__
@@ -87,18 +88,28 @@ class _Singleton(type):
                 super(_Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls._meta_key]
 
+    def _prep_meta_key(cls):
+        """Make sure that our meta_key has been setup properly"""
+        if cls not in cls._meta_key:
+            # We want the class type as part of the key, to ensure that there
+            # can be more than one type of Singleton
+            cls._meta_key += (cls,)
+
     def new(cls, *args, **kwargs):
         """Overwrite any existing instances of this Singleton type and replace
         it with a new instance
         """
+        cls._prep_meta_key()
         if cls._meta_key in cls._instances:
             cls._instances.pop(cls._meta_key)
         return cls.__call__(*args, **kwargs)
 
     def delete(cls):
         """Delete any existing Singleton of this type, if one exists"""
+        cls._prep_meta_key()
         if cls._meta_key in cls._instances:
-            cls._instances.pop(cls._meta_key)
+            obj = cls._instances.pop(cls._meta_key)
+            del obj
 _Singleton._meta_key = inspect.getmro(_Singleton)
 
 
@@ -118,24 +129,3 @@ class Singleton(_Singleton('SingletonMeta', (object,), {})):
         ... 5
     """
     pass
-
-
-class ThreadedSingleton(_Singleton('SingletonMeta', (object,), {})):
-    """An additional, slightly less strict Singleton implementation. Here you
-    can use threads to isolate various singleton instances within their own
-    threads. Or, to put it simply, each thread can have it's own singleton
-    instance
-    """
-    def __call__(cls, *args, **kwargs):
-        _key = inspect.getmro(cls)
-        cur_thread = threading.current_thread()
-        if _key not in cls._instances:
-            cls._instances[_key] = {
-                # super(_Singleton, cls) evaluates to type; *args/**kwargs get
-                # passed to class __init__ method via type.__call__
-                cur_thread: super(_Singleton, cls).__call__(*args, **kwargs)
-            }
-        elif _key in cls._instances and cur_thread not in cls._instances[_key]:
-            cls._instances[_key][cur_thread] = \
-                super(_Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[_key][cur_thread]
